@@ -1,0 +1,38 @@
+[package]
+name = "volt"
+version = "0.1.0"
+description = "A API wrapper for the revolt API"
+licence = "MIT"
+# homepage
+# documentation
+# repository 
+authors = ["Fish"]
+readme = "README.md"
+keywords = ["API", "Revolt"]
+edition = "2021"
+
+[features]
+default = ["core", "client", "bot"]
+core = []
+client = ["core"]
+bot = ["core"]
+
+[lib]
+name = "volt"
+path = "src/lib.rs"
+
+[[test]]
+name = "volt_tests"
+path = "tests/"
+
+[dependencies]
+reqwest = { version = "0.11.16", features = ["json", "multipart"] }
+tokio = { version = "1.27.0", features = ["full"] }
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.96"
+tungstenite = {version = "0.19.0", features = ["native-tls"]}
+url = "2.3.1"
+
+[dev-dependencies]
+dotenv = "0.15.0"
+image = "0.24.6"

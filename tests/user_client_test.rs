@@ -15,8 +15,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>>{
     let user: String = var("USER_KEY").unwrap();
 
     let mut client = UserClient::new(user);
-    let test = client.fetch_user("01EXAF3KX65608AJ4NG27YG1HM").run();
-    println!("{:?}", test.badges());
+    //let test = client.edit_user("01GVKXN2XQWCP61CVYACNSN6CW", r#"{"status":{"text":"Hey", "presence": "Online"}}"#).patch();
+    //let test = client.friend_request("0chroma#4432").post();
+    let test = client.fetch_self().get();
+    println!("{:?}", test);
 
     let end = Instant::now();
     println!("{:?}", end - start);

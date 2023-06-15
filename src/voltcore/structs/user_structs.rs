@@ -8,36 +8,39 @@ use serde::{Serialize, Deserialize};
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct User{
     #[serde(rename = "_id")]
-    pub(crate) id: String,
-    pub(crate) username: String,
-    pub(crate) avatar: Option<Image>,
-    pub(crate) badges: Option<i32>,
-    pub(crate) status: Option<Status>,
-    pub(crate) relationship: Option<String>,
-    pub(crate) online: Option<bool>,
+    pub id: String,
+    pub username: String,
+    pub discriminator: String,
+    pub avatar: Option<Image>,
+    pub badges: i32,
+    pub status: Option<Status>,
+    pub relationship: Option<String>,
+    pub online: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct Image{
     #[serde(rename = "_id")]
-    pub(crate) id: String,
-    pub(crate) tag: String,
-    pub(crate) filename: String,
-    pub(crate) metadata: Metadata,
-    pub(crate) content_type: String,
-    pub(crate) size: usize,
+    pub id: String,
+    pub tag: String,
+    pub filename: String,
+    pub metadata: Metadata,
+    pub content_type: String,
+    pub size: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub(crate) struct Metadata{
-    pub(crate) height: usize,
-    pub(crate) width: usize,
+pub struct Metadata{
+    #[serde(rename="type")]
+    pub types: String,
+    pub height: usize,
+    pub width: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub(crate) struct Status{
-    pub(crate) text: Option<String>,
-    pub(crate) presence: String,
+pub struct Status{
+    pub text: Option<String>,
+    pub presence: String,
 }
 
 // **********************
@@ -46,7 +49,7 @@ pub(crate) struct Status{
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct UserFlags{
-    pub(crate) flags: usize,
+    pub flags: usize,
 }
 
 // ****************************
@@ -55,6 +58,39 @@ pub struct UserFlags{
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct UserProfile{
-    pub(crate) content: String,
-    pub(crate) background: Image,
+    pub content: String,
+    pub background: Image,
+}
+
+// ************************
+// Direct Messsage Channels
+// ************************
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct UserDmChannels{
+    pub channel_type: String,
+    #[serde(rename = "_id")]
+    pub channel_id: String,
+    pub user: Option<String>,
+    pub name: Option<String>,
+    pub owner: Option<String>,
+    pub recipients: Option<Vec<String>>,
+    pub active: Option<bool>,
+    pub last_message_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct UserDms{
+    pub channel_type: String,
+    #[serde(rename = "_id")]
+    pub channel_id: String,
+    pub recipients: Option<Vec<String>>,
+    pub active: Option<bool>,
+    pub last_message_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct UserMutuals{
+    pub users: Vec<String>,
+    pub servers: Vec<String>,
 }

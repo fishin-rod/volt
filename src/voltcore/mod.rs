@@ -3,8 +3,8 @@
 //! Without theses functions many of the crates features would not be able to work
 //! 
 //! Most of these functions are limited to inside crate use only but
-//! some are enabled to be used in your own applications even thougn 
-//! it is not recomened
+//! some are enabled to be used in your own applications even though 
+//! it is not recommened
 
 pub(crate) mod cache;
 

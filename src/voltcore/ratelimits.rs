@@ -1,4 +1,4 @@
-use std::time::{Instant, Duration};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TokenBucket {
@@ -8,10 +8,10 @@ pub struct TokenBucket {
 }
 
 impl TokenBucket {
-    pub fn new(_refresh_rate: Duration) -> Self {
+    pub fn new(tokens: usize) -> Self {
         TokenBucket {
-            capacity: 25,
-            tokens: 25,
+            capacity: tokens,
+            tokens: tokens,
             last_refresh: Instant::now(),
         }
     }

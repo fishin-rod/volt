@@ -9,7 +9,7 @@
 //! - Pre Serilization of the data
 //! - Cacheing to improve performance of large requests
 //! - Inbuilt rate limits (25 requests per second)
-//! - Error handeling 
+//! - Error handeling (Still in very heavy progress)
 //! 
 
 #[cfg(feature="core")]
@@ -20,8 +20,9 @@ pub(crate) mod voltcore;
 /// Without theses functions many of the crates features would not be able to work
 /// 
 /// Most of these functions are limited to inside crate use only but
-/// some are enabled to be used in your own applications even thougn 
-/// it is not recomened
+/// some are enabled to be used in your own applications even though
+/// it is not recommened
+
 #[cfg(feature="core")]
 pub mod core{
 
@@ -35,12 +36,14 @@ pub mod core{
     pub(crate) use crate::voltcore::ratelimits::TokenBucket;
 
     #[cfg(feature="core")]
-    pub(crate) use crate::voltcore::structs::{user_structs};
-
+    pub(crate) use crate::voltcore::structs;
 }
 
 #[cfg(feature="client")]
 pub mod user;
+
+#[cfg(feature="client")]
+pub mod bot;
 
 #[cfg(feature="client")]
 pub(crate) mod client;

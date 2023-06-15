@@ -17,7 +17,7 @@
 //! from_path(path).unwrap();
 //! let user: String = var("USER_KEY").unwrap();
 //! let mut client = UserClient::new(user);
-//! println!("{:?}", client.fetch_self().run());
+//! println!("{:?}", client.fetch_self().get());
 //! ```
 //!
 //! This returns just the id of the user as string
@@ -31,11 +31,11 @@
 //! from_path(path).unwrap();
 //! let user: String = var("USER_KEY").unwrap();
 //! let mut client = UserClient::new(user);
-//! println!("{:?}", client.fetch_self().run().id());
+//! println!("{:?}", client.fetch_self().get().id());
 //! ```
 //! 
 
-use crate::core::user_structs::{User, UserFlags, UserProfile, Image};
+use crate::core::structs::user_structs::{User, UserFlags, UserProfile, UserDmChannels as Channels, UserDms, UserMutuals, Image};
 use crate::core::Cache;
 use crate::core::TokenBucket;
 
@@ -47,22 +47,11 @@ use tokio::time;
 use std::time::Duration;
 use std::sync::{Arc, Mutex};
 
-/// The client to acsses user information
+/// The client to acsess user information
 /// 
 /// ## Returns:
 /// 
 /// The desired information as the inbuild `UserResult` enum type
-/// 
-/// ### Semantic Notes:
-/// 
-/// To correctly run without errors you must call UserClient::new() with your authentication token as the paramenter, then any of the funcions other then `.run()` last you must call `.run()`
-/// 
-/// **What will go wrong:**
-/// 
-/// - Only `::new()` will print out the parameters passed to the enum without refreshing it 
-/// - Taking out `.run()` will again only print the parameters passed to the enum but it will refresh it to defult empty values
-/// - Calling `.run() after `::new()` will panic! with an unwrap error
-/// - Excluding `::new()` wont let you run due to missing parameters (auth)
 
 #[derive(Debug, Clone)]
 pub struct UserClient {
@@ -73,7 +62,6 @@ pub struct UserClient {
     user: String,
     json: String,
     data: Data,
-    get: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -81,6 +69,9 @@ pub(crate) enum Data {
     Users(),
     UsersFlags(),
     UsersProfile(),
+    UserDmChannels(),
+    UserDms(),
+    UserMutuals(),
     String(),
 }
 
@@ -97,10 +88,13 @@ pub enum UserResult {
     User(User),
     UserFlags(UserFlags),
     UserProfile(UserProfile),
+    UserDmChannels(Vec<Channels>),
+    UserDms(UserDms),
+    UserMutuals(UserMutuals),
     String(String),
 }
 
-impl UserClient{
+impl UserClient {
 
     /// Creates a new UserClient object
     /// 
@@ -117,11 +111,10 @@ impl UserClient{
             auth, 
             cache: Cache::new(),
             url: String::new(),
-            bucket: Arc::new(Mutex::new(TokenBucket::new(Duration::new(1, 0)))),
+            bucket: Arc::new(Mutex::new(TokenBucket::new(20))),
             user: String::new(),
             json: String::new(),
-            data: Data::Users(),
-            get: true,
+            data: Data::Users(), // Data::Users() is defult as it is the most common
         }
     }
 
@@ -130,7 +123,6 @@ impl UserClient{
     /// Sets the UserResult enum to UserResult::User
     
     pub fn fetch_self(&mut self) -> &mut Self{
-        self.data = Data::Users();
         self.url ="https://api.revolt.chat/users/@me".to_string();
         self
     } 
@@ -141,12 +133,11 @@ impl UserClient{
     /// 
     /// ## Parameters:
     /// 
-    /// `userid: &str` - The userid of the user you want data for on revolt
+    /// `target: &str` - The userid of the user you want data for on revolt
     
-    pub fn fetch_user(&mut self, userid: &str) -> &mut Self{
-        self.data = Data::Users();
-        self.url = format!("https://api.revolt.chat/users/{}", userid);
-        self.user = userid.to_string();
+    pub fn fetch_user(&mut self, target: &str) -> &mut Self{
+        self.url = format!("https://api.revolt.chat/users/{}", target);
+        self.user = target.to_string();
         self
     }
 
@@ -154,12 +145,15 @@ impl UserClient{
     /// 
     /// ## Parameters:
     /// 
-    /// - `userid: &str` - The userid of your user
+    /// - `target: &str` - The userid of your user
     /// - `changes: &str` - A &str repersentation of the changes you want to make to your user
-
-    pub fn edit_user(&mut self, userid: &str, changes: &str) -> &mut Self{
-        self.get = false;
-        self.url = format!("https://api.revolt.chat/users/{}", userid);
+    /// 
+    /// **Flaged as experimental until further testing can be done!!**
+    
+    #[cfg(feature="experimental")]
+    pub fn edit_user(&mut self, target: &str, changes: &str) -> &mut Self{
+        self.data = Data::String();
+        self.url = format!("https://api.revolt.chat/users/{}", target);
         self.json = changes.to_string();
         self
     }
@@ -176,12 +170,12 @@ impl UserClient{
     /// 
     /// ## Parameters:
     /// 
-    /// `userid: &str` - The userid of the user you want data for on revolt
+    /// `target: &str` - The userid of the user you want data for on revolt
 
-    pub fn fetch_user_flags(&mut self, userid: &str) -> &mut Self{
+    pub fn fetch_user_flags(&mut self, target: &str) -> &mut Self{
         self.data = Data::UsersFlags();
-        self.url = format!("https://api.revolt.chat/users/{}/flags", userid);
-        self.user = userid.to_string();
+        self.url = format!("https://api.revolt.chat/users/{}/flags", target);
+        self.user = target.to_string();
         self
     }
 
@@ -191,9 +185,12 @@ impl UserClient{
     /// 
     /// - `username: &str` - The username you want to change to
     /// - `pass: &str` - Your revolt password
+    /// 
+    /// **Flaged as experimental until further testing can be done!!**
     
-    pub fn change_username(&mut self, username: &str, pass: &str) -> &mut Self{
-        self.get = false; 
+    #[cfg(feature="experimental")]
+    pub fn change_username(&mut self, username: &str, pass: &str) -> &mut Self {
+        self.data = Data::String();
         self.url ="https://api.revolt.chat/users/@me/username".to_string();
         self.json = format!("{{\"username\": {}, \"password\": {},}}", username, pass);
         self
@@ -205,34 +202,100 @@ impl UserClient{
     /// 
     /// ## Parameters:
     /// 
-    /// `userid: &str` - The id of the user that you want the avatar of
+    /// `target: &str` - The id of the user that you want the avatar of
     
-    pub fn fetch_default_avatar(&mut self, userid: &str) -> &mut Self{
+    pub fn fetch_default_avatar(&mut self, target: &str) -> &mut Self {
         self.data = Data::String();
-        self.url = format!("https://api.revolt.chat/users/{}/default_avatar", userid);
-        self.user = userid.to_string();
+        self.url = format!("https://api.revolt.chat/users/{}/default_avatar", target);
+        self.user = target.to_string();
         self    
     }
 
-    /// fetchs the profile data of a user
+    /// Fetchs the profile data of a user
     /// 
     /// ## Parameters: 
     /// 
-    /// `userid: &str` - The id of the user that you want to fetch the profile of
+    /// `target: &str` - The id of the user that you want to fetch the profile of
     
-    pub fn fetch_user_profile(&mut self, userid: &str) -> &mut Self{
+    pub fn fetch_user_profile(&mut self, target: &str) -> &mut Self {
         self.data = Data::UsersProfile();
-        self.url = format!("https://api.revolt.chat/users/{}/profile", userid);
-        self.user = userid.to_string();
+        self.url = format!("https://api.revolt.chat/users/{}/profile", target);
+        self.user = target.to_string();
         self
     }
 
-    /// Runs the client
+    /// **Flaged as experimental until further testing can be done!!**
+    #[cfg(feature="experimental")]
+    pub fn fetch_direct_message_channels(&mut self) -> &mut Self {
+        self.data = Data::UserDmChannels();
+        self.url ="https://api.revolt.chat/users/dms".to_string();
+        self
+    }
+
+    /// **Flaged as experimental until further testing can be done!!**
+    #[cfg(feature="experimental")]
+    pub fn open_direct_message(&mut self, target: &str) -> &mut Self {
+        self.data = Data::UserDms();
+        self.url = format!("https://api.revolt.chat/users/{}/dm", target);
+        self
+    }
+
+    /// Fetches the mutual users and servers of a person
     /// 
-    /// This function makes the request, applies rate limits, and caches/retrives values from the cache
+    /// ## Parameters:
     /// 
-    /// **Note:**
-    /// This funtion is required to come immediatly after any one of the other funtions
+    /// `target: &str` - The user id of the person you want to compare 
+
+    pub fn fetch_mutuals(&mut self, target: &str) -> &mut Self { 
+        self.data = Data::UserMutuals();
+        self.url = format!("https://api.revolt.chat/users/{}/mutual", target);
+        self
+    }
+
+    /// Accepts or denies a friend request
+    /// 
+    /// ## Prameters:
+    /// 
+    /// `target: &str` - The persons whoes friend request you want to accep/deny
+    /// 
+    /// **Note**
+    /// If you do `.put()` after it will accept the request, `.del()` will deny it or remove the friend
+    
+    pub fn friend(&mut self, target: &str) -> &mut Self {
+        self.url = format!("https://api.revolt.chat/users/{}/friend", target);
+        self
+    }
+
+    /// Blocks or unblocks a user
+    /// 
+    /// ## Prameters:
+    /// 
+    /// `target: &str` - The person who you want to block/unblock
+    /// 
+    /// **Note**
+    /// If you do `.put()` it will block the user, `.del()` will unblock them
+    
+    pub fn block(&mut self, target: &str) -> &mut Self {
+        self.url = format!("https://api.revolt.chat/users/{}/block", target);
+        self
+    }
+
+    /// Sends a friend request to a user
+    /// 
+    /// ## Prameters: 
+    /// 
+    /// `target: &str` - The username and discrimeter of the user you want to send a friend request to 
+    /// ex: "Bird#9223"
+    
+    pub fn friend_request(&mut self, target: &str) -> &mut Self {
+        self.url = "https://api.revolt.chat/users/friend".to_string();
+        self.json = format!("{{\"username\":\"{}\"}}", target);
+        self
+    }
+
+    /// Runs the client for a get request
+    /// 
+    /// This function makes the request, applies rate limits, and caches/retrives values from the cache 
     /// 
     /// ## Retruns:
     /// 
@@ -240,9 +303,10 @@ impl UserClient{
     /// or used to get more specific data from the json data provided
 
     #[tokio::main]
-    pub async fn run(&mut self) -> UserResult{
+    pub async fn get(&mut self) -> UserResult{
         // Checks the cache for the item
-        if self.cache.get(&self.user).is_some(){
+        // Only used on GET requests
+        if self.cache.get(&self.user).is_some() {
             let text = self.cache.get(&self.user).unwrap();
             match text.1.to_lowercase().as_str(){
                 "user" => {
@@ -277,12 +341,7 @@ impl UserClient{
             time::sleep(Duration::from_millis(100)).await;
         }
 
-        let client = if self.get{
-            ReqwestClient::new().get(&self.url).headers(header).send().await.unwrap()
-        }
-        else{
-            ReqwestClient::new().patch(&self.url).headers(header).json(&self.json).send().await.unwrap()
-        }; 
+        let client = ReqwestClient::new().get(&self.url).headers(header).send().await.unwrap();
 
         // Might be a problem in the future
         let body = client.text().await.unwrap();
@@ -290,7 +349,121 @@ impl UserClient{
         return self.return_data(body)
     }
 
-    // Literally returns the data for the main 'run' function 
+    /// Runs the client for a patch request
+    /// 
+    /// This function makes the request, applies rate limits, sends the data, and returns the result
+    /// 
+    /// ## Retruns:
+    /// 
+    /// This function returns a UserResult enum that can be printed out 
+    /// or used to get more specific data from the json data provided
+
+    #[tokio::main]
+    pub async fn patch(&mut self) -> UserResult {
+        let bucket = self.bucket.clone();
+        let mut bucket = bucket.lock().unwrap();
+
+        let mut header: HeaderMap = HeaderMap::new();
+        header.insert("x-session-token", HeaderValue::from_str(&self.auth).unwrap()); 
+        header.insert("Content-Type", HeaderValue::from_str("application/json").unwrap());
+
+        while !bucket.try_acquire() {
+            time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let client = ReqwestClient::new().patch(&self.url).headers(header).body(self.json.clone()).send().await.unwrap();
+
+        let body = client.text().await.unwrap();
+
+        return self.return_data(body)
+    }
+    
+    /// Runs the client for a put request
+    /// 
+    /// This function makes the request, applies rate limits, and returns the result
+    /// 
+    /// ## Retruns:
+    /// 
+    /// This function returns a UserResult enum that can be printed out 
+    /// or used to get more specific data from the json data provided
+    
+    #[tokio::main]
+    pub async fn put(&mut self) -> UserResult {
+        let bucket = self.bucket.clone();
+        let mut bucket = bucket.lock().unwrap();
+
+        let mut header: HeaderMap = HeaderMap::new();
+        header.insert("x-session-token", HeaderValue::from_str(&self.auth).unwrap()); 
+
+        while !bucket.try_acquire() {
+            time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let client = ReqwestClient::new().put(&self.url).headers(header).send().await.unwrap();
+
+        let body = client.text().await.unwrap();
+
+        return self.return_data(body)
+    }
+
+    /// Runs the client for a delete request
+    /// 
+    /// This function makes the request, applies rate limits, and returns the result
+    /// 
+    /// ## Retruns:
+    /// 
+    /// This function returns a UserResult enum that can be printed out 
+    /// or used to get more specific data from the json data provided
+    
+    #[tokio::main]
+    pub async fn del(&mut self) -> UserResult {
+        let bucket = self.bucket.clone();
+        let mut bucket = bucket.lock().unwrap();
+
+        let mut header: HeaderMap = HeaderMap::new();
+        header.insert("x-session-token", HeaderValue::from_str(&self.auth).unwrap()); 
+
+        while !bucket.try_acquire() {
+            time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let client = ReqwestClient::new().delete(&self.url).headers(header).send().await.unwrap();
+
+        let body = client.text().await.unwrap();
+
+        return self.return_data(body)
+    }   
+
+    /// Runs the client for a post request
+    /// 
+    /// This function makes the request, applies rate limits, sends the data, and returns the result
+    /// 
+    /// ## Retruns:
+    /// 
+    /// This function returns a UserResult enum that can be printed out 
+    /// or used to get more specific data from the json data provided
+
+    #[tokio::main]
+    pub async fn post(&mut self) -> UserResult {
+        let bucket = self.bucket.clone();
+        let mut bucket = bucket.lock().unwrap();
+
+        let mut header: HeaderMap = HeaderMap::new();
+        header.insert("x-session-token", HeaderValue::from_str(&self.auth).unwrap()); 
+        header.insert("Content-Type", HeaderValue::from_str("application/json").unwrap());
+
+        while !bucket.try_acquire() {
+            time::sleep(Duration::from_millis(100)).await;
+        }
+
+        let client = ReqwestClient::new().post(&self.url).headers(header).body(self.json.clone()).send().await.unwrap();
+
+        let body = client.text().await.unwrap();
+
+        return self.return_data(body)
+    }
+
+    // Literally returns the data for the main 'get, patch, etc.' functions
     fn return_data(&mut self, body: String) -> UserResult{
         match self.data{
             Data::Users() => {
@@ -308,6 +481,18 @@ impl UserClient{
                 self.cache.add(self.user.clone(), (body, "userprofile".to_string()));
                 return UserResult::UserProfile(value);
             },
+            Data::UserDmChannels() => {
+                let value: Vec<Channels> = serde_json::from_str(&body).unwrap();
+                return UserResult::UserDmChannels(value);
+            },
+            Data::UserDms() => {
+                let value: UserDms = serde_json::from_str(&body).unwrap();
+                return UserResult::UserDms(value);
+            },
+            Data::UserMutuals() => {
+                let value: UserMutuals = serde_json::from_str(&body).unwrap();
+                return UserResult::UserMutuals(value);
+            }
             Data::String() => {
                 return UserResult::String(body);
             }
@@ -353,6 +538,20 @@ impl UserResult {
         }
     }
 
+    /// Returns a users discriminator
+    /// 
+    /// ## Returns:
+    /// 
+    /// The discriminator of a user as a string
+    
+    pub fn discriminator(&self) -> String {
+        if let UserResult::User(user_data) = self {
+            user_data.discriminator.clone()
+        } else{
+            panic!("Cannot get discriminator from: {:?}", self);
+        }
+    }
+
     /// Returns a users avatar
     /// 
     /// ## Returns:
@@ -370,7 +569,7 @@ impl UserResult {
                 false => panic!("Avatar not found!"),
             }
         } else {
-            panic!("Cannot get background from: {:?}", self);
+            panic!("Cannot get avatar from: {:?}", self);
         }
     }
 
@@ -405,7 +604,6 @@ impl UserResult {
     pub fn badges(&self) -> Vec<&str> {
         // Credit to FatalErrorMogus for the inital design
         if let UserResult::User(user_data) = self {
-            // Badges constant
             let badges: Vec<(&i32, &str)> = vec![
                 (&1024, "ReservedRelevantJokeBadge1"),
                 (&512, "ReservedRelevantJokeBadge1"),
@@ -419,7 +617,7 @@ impl UserResult {
                 (&2, "Translator"),
                 (&1, "Developer"),
             ];
-            let mut badge = user_data.badges.unwrap();
+            let mut badge = user_data.badges;
             let mut final_badges: Vec<&str> = Vec::new();
             for i in badges{
                 if badge - i.0 >= 0 {
@@ -503,6 +701,82 @@ impl UserResult {
             }
         } else {
             panic!("Cannot get status from: {:?} \nMake sure you are not calling: \"fetch_user_flags\"", self);
+        }
+    }
+
+    #[cfg(feature="experimental")]
+    pub fn channel_types(&self) -> Vec<String> {
+        let mut types: Vec<String> = Vec::new();
+        if let UserResult::UserDmChannels(user_data) = self {
+            for channel_types in user_data {
+                types.push(channel_types.channel_type.clone());
+            }
+            types
+        }
+        else if let UserResult::UserDms(user_data) = self {
+            // Unnessisary but ok
+            types.push(user_data.channel_type.clone());
+            types
+        }
+        else {
+            panic!("Cannot get channel type(s) from: {:?}", self)
+        }
+    }
+
+    #[cfg(feature="experimental")]
+    pub fn channel_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = Vec::new();
+        if let UserResult::UserDmChannels(user_data) = self {
+            for channel_types in user_data {
+                ids.push(channel_types.channel_id.clone());
+            }
+            ids
+        }
+        else if let UserResult::UserDms(user_data) = self {
+            // Unnessisary but ok
+            ids.push(user_data.channel_type.clone());
+            ids
+        }
+        else {
+            panic!("Cannot get channel id(s) from: {:?}", self)
+        }
+    }
+
+    /// Returns the mutual users a person has
+    /// 
+    /// ## Returns:
+    /// 
+    /// The mutual users of a person as a `Vec<String>`
+    /// 
+    /// ## Panics!
+    /// 
+    /// This function will panic if the enum varient UserMutuals was not called
+    
+    pub fn mutual_users(&self) -> Vec<String> {
+        if let UserResult::UserMutuals(user_data) = self {
+            user_data.users.clone()
+        }
+        else {
+            panic!("Cannot Get mutual users from: {:?}", self)
+        }
+    }
+
+    /// Returns the mutual servers a person has
+    /// 
+    /// ## Returns:
+    /// 
+    /// The mutual servers of a person as a `Vec<String>`
+    /// 
+    /// ## Panics!
+    /// 
+    /// This function will panic if the enum varient UserMutuals was not called
+    /// 
+    pub fn mutual_servers(&self) -> Vec<String> {
+        if let UserResult::UserMutuals(user_data) = self {
+            user_data.servers.clone()
+        }
+        else {
+            panic!("Cannot Get mutual servers from: {:?}", self)
         }
     }
 }
